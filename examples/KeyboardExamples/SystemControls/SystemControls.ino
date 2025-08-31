@@ -10,7 +10,7 @@
 #include "USBHIDSystemControl.h"
 #endif
 
-#if defined(CONFIG_BT_BLE_ENABLED)
+#if defined(CONFIG_SOC_BLE_SUPPORTED)
 #include "BleConnectionStatus.h"
 #include "BleCompositeHID.h"
 #include "KeyboardDevice.h"
@@ -18,9 +18,12 @@
 #include <NimBLEDevice.h>
 #endif
 
+#if defined(CONFIG_TINYUSB_ENABLED)
 USBHIDSystemControl UsbSystemControl;
+USBHIDConsumerControl UsbConsumerControl;
+#endif
 
-#if defined(CONFIG_BT_BLE_ENABLED)
+#if defined(CONFIG_SOC_BLE_SUPPORTED)
 KeyboardDevice* keyboard;
 MouseDevice* mouse;
 BleCompositeHID compositeHID("CompositeHID Keyboard-Mouse", "Mystfit", 100);
@@ -31,7 +34,7 @@ bool pinBootState = false;
 void setup() {
     Serial.begin(115200);
   
-#if defined(CONFIG_BT_BLE_ENABLED)
+#if defined(CONFIG_SOC_BLE_SUPPORTED)
     // Set up keyboard
     KeyboardConfiguration keyboardConfig;
     // Media keys are not enabled by default
@@ -54,25 +57,24 @@ void setup() {
     compositeHID.begin();
 #endif
 #if defined(CONFIG_TINYUSB_ENABLED)
-    USB.begin();
     UsbSystemControl.begin(); 
+    UsbConsumerControl.begin();
+    USB.begin();
 #endif
     pinMode(BOOT_PIN,INPUT_PULLUP);
     pinMode(LED_BUILTIN,OUTPUT);
     pinBootState = digitalRead(BOOT_PIN);
     delay(3000);
 }
-
 void loop() {
-
   if(digitalRead(BOOT_PIN) != pinBootState){
     pressed = !pressed;
     pinBootState = digitalRead(BOOT_PIN);
     if(pinBootState==LOW){
       digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
       Serial.println("Button pressed, new state: " + String(pressed));
-      
-      keyboard->mediaKeyPress(KEY_MEDIA_MUTE);
+#if defined(CONFIG_SOC_BLE_SUPPORTED)      
+      keyboard->mediaKeyPress(KEY_MEDIA_MUTE); // KEY_MEDIA_MUTE and CONSUMER_CONTROL_MUTE are not the same
       delay(50);
       keyboard->mediaKeyRelease(KEY_MEDIA_MUTE);
       delay(1000);
@@ -80,10 +82,17 @@ void loop() {
       keyboard->SystemControlPress(SYSTEM_CONTROL_STANDBY);
       delay(50);
       keyboard->SystemControlRelease();
+#endif
+#if defined(CONFIG_TINYUSB_ENABLED)
+      UsbConsumerControl.press(CONSUMER_CONTROL_MUTE);
+      delay(50);
+      UsbConsumerControl.release();
+      delay(1000);
       // If using USB HID
-      // UsbSystemControl.press(SYSTEM_CONTROL_STANDBY);
-      // UsbSystemControl.release();
-  
+      UsbSystemControl.press(SYSTEM_CONTROL_STANDBY);
+      delay(50);
+      UsbSystemControl.release();
+#endif  
     } 
   }
 }
